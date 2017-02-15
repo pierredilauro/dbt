@@ -623,7 +623,14 @@ class SchemaTest(DBTSource):
 
     def render(self):
         provided_args = self.get_args_for_macro()
-        return self.macro(**provided_args)
+        try:
+            return self.macro(**provided_args)
+        except TypeError as e:
+            import ipdb; ipdb.set_trace()
+            compiler_warning(self,
+                             'invalid arguments provided to {}'.format(
+                                 self.macro_name))
+            return None
 
     def __repr__(self):
         class_name = self.__class__.__name__
@@ -649,6 +656,12 @@ class SchemaFile(DBTSource):
                     compiler_error(
                         self,
                         "no constraints given to test: '{}.{}'"
+                        .format(model_name, constraint_type)
+                    )
+                if not isinstance(constraint_data, list):
+                    compiler_error(
+                        self,
+                        "constraints given to test are not a list: '{}.{}'"
                         .format(model_name, constraint_type)
                     )
                 for params in constraint_data:

@@ -476,7 +476,10 @@ class Compiler(object):
         models_and_schemas.update(schemas_map)
 
         written_tests = []
-        for schema_test in schemas_map.keys():
+        for schema_test, raw_query in schemas_map.items():
+
+            if raw_query is None:
+                continue
 
             query = self.add_cte_to_rendered_query(
                 linker, schema_test, models_and_schemas

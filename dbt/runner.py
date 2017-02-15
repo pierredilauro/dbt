@@ -605,11 +605,6 @@ class RunManager(object):
             data = graph.node[node]
             if data.get('dbt_run_type') == model_type:
                 model_nodes.append(node)
-            else:
-                if 'dbt_run_type' not in data:
-                    import ipdb; ipdb.set_trace()
-
-                pass
 
         model_only_graph = graph.subgraph(model_nodes)
         selected_nodes = dbt.graph.selector.select_nodes(self.project,
