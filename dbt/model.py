@@ -1,7 +1,7 @@
 import os.path
 import yaml
 import jinja2
-import six 
+import six
 import re
 
 import dbt.schema_tester
@@ -623,14 +623,7 @@ class SchemaTest(DBTSource):
 
     def render(self):
         provided_args = self.get_args_for_macro()
-        try:
-            return self.macro(**provided_args)
-        except TypeError as e:
-            import ipdb; ipdb.set_trace()
-            compiler_warning(self,
-                             'invalid arguments provided to {}'.format(
-                                 self.macro_name))
-            return None
+        return self.macro(**provided_args)
 
     def __repr__(self):
         class_name = self.__class__.__name__
