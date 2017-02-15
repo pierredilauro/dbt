@@ -596,7 +596,7 @@ class SchemaTest(DBTSource):
         key = re.sub('[^0-9a-zA-Z]+', '_', self.unique_option_key())
         test_name = self.get_test_name()
 
-        filename = "{model_name}_{test_name}_{key}".format(
+        filename = "{test_name}_{model_name}_{key}".format(
             model_name=self.model_name,
             test_name=test_name,
             key=key
