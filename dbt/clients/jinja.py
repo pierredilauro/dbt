@@ -35,7 +35,7 @@ def get_template(string, ctx, node=None, silent_on_undefined=False):
         if silent_on_undefined:
             local_env = silent_on_undefined_env
 
-        return env.from_string(dbt.compat.to_string(string), globals=ctx)
+        return local_env.from_string(dbt.compat.to_string(string), globals=ctx)
 
     except (jinja2.exceptions.TemplateSyntaxError,
             jinja2.exceptions.UndefinedError) as e:
