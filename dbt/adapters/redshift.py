@@ -9,10 +9,12 @@ from dbt.logger import GLOBAL_LOGGER as logger
 
 class RedshiftAdapter(PostgresAdapter):
 
-    def type():
+    @classmethod
+    def type(cls):
         return 'redshift'
 
-    def date_function():
+    @classmethod
+    def date_function(cls):
         return 'getdate()'
 
     @classmethod

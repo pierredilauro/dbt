@@ -32,10 +32,12 @@ class DefaultAdapter:
         raise dbt.exceptions.NotImplementedException(
             '`exception_handler` is not implemented for this adapter!')
 
-    def type():
+    @classmethod
+    def type(cls):
         raise dbt.exceptions.NotImplementedException(
             '`type` is not implemented for this adapter!')
 
+    @classmethod
     def date_function(cls):
         raise dbt.exceptions.NotImplementedException(
             '`date_function` is not implemented for this adapter!')
@@ -295,9 +297,10 @@ class DefaultAdapter:
     def acquire_connection(cls, profile, name):
         global connections_available, lock
 
-        # we add a magic number, 2 because there are master connections,
-        # one for pre- and post-run hooks, and one for integration tests.
-        max_connections = profile.get('threads') + 2
+        # we add a magic number, 2 because there are overhead connections,
+        # one for pre- and post-run hooks and other misc operations that occur
+        # before the run starts, and one for integration tests.
+        max_connections = profile.get('threads', 1) + 2
 
         try:
             lock.acquire()

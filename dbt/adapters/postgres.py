@@ -58,10 +58,12 @@ class PostgresAdapter(dbt.adapters.default.DefaultAdapter):
             logger.debug("Rolling back transaction.")
             raise e
 
-    def type():
+    @classmethod
+    def type(cls):
         return 'postgres'
 
-    def date_function():
+    @classmethod
+    def date_function(cls):
         return 'datenow()'
 
     @classmethod

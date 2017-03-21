@@ -45,9 +45,11 @@ class SnowflakeAdapter(PostgresAdapter):
             logger.debug("Rolling back transaction.")
             raise e
 
+    @classmethod
     def type():
         return 'snowflake'
 
+    @classmethod
     def date_function():
         return 'CURRENT_TIMESTAMP()'
 
