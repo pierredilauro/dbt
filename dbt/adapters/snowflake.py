@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 
-import copy
 import re
 
 import snowflake.connector
@@ -18,8 +17,8 @@ from dbt.logger import GLOBAL_LOGGER as logger
 
 class SnowflakeAdapter(PostgresAdapter):
 
-    @contextmanager
     @classmethod
+    @contextmanager
     def exception_handler(cls, profile, sql, model_name=None,
                           connection_name='master'):
         connection = cls.get_connection(profile, connection_name)
@@ -129,7 +128,8 @@ class SnowflakeAdapter(PostgresAdapter):
             'USE SCHEMA "{}"'.format(
                 connection.get('credentials', {}).get('schema')))
 
-        return dbt.adapters.DefaultAdapter.execute_model(profile, model)
+        return super(PostgresAdapter, cls).execute_model(
+            profile, model)
 
     @classmethod
     def add_query(cls, profile, sql, model_name=None):
@@ -148,8 +148,7 @@ class SnowflakeAdapter(PostgresAdapter):
 
             if without_comments == "":
                 continue
-
-            connection, cursor = dbt.adapters.DefaultAdapter.add_query(
-                cls, profile, individual_query, model_name)
+            connection, cursor = super(PostgresAdapter, cls).add_query(
+                profile, individual_query, model_name)
 
         return connection, cursor

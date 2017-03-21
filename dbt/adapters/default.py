@@ -25,8 +25,8 @@ class DefaultAdapter:
     # ADAPTER-SPECIFIC FUNCTIONS -- each of these must be overridden in
     #                               every adapter
     ###
-    @contextmanager
     @classmethod
+    @contextmanager
     def exception_handler(cls, profile, sql, model_name=None,
                           connection_name=None):
         raise dbt.exceptions.NotImplementedException(

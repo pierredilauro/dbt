@@ -378,6 +378,22 @@ def run_hooks(profile, hooks, context, source):
     return adapter.execute_all(profile=profile, sqls=compiled_hooks)
 
 
+def track_model_run(index, num_nodes, run_model_result):
+    invocation_id = dbt.tracking.active_user.invocation_id
+    dbt.tracking.track_model_run({
+        "invocation_id": invocation_id,
+        "index": index,
+        "total": num_nodes,
+        "execution_time": run_model_result.execution_time,
+        "run_status": run_model_result.status,
+        "run_skipped": run_model_result.skip,
+        "run_error": run_model_result.error,
+        "model_materialization": get_materialization(run_model_result.node),  # noqa
+        "model_id": get_hash(run_model_result.node),
+        "hashed_contents": get_hashed_contents(run_model_result.node),  # noqa
+    })
+
+
 class RunModelResult(object):
     def __init__(self, node, error=None, skip=False, status=None,
                  execution_time=0):
@@ -483,13 +499,18 @@ class RunManager(object):
         return result
 
     def safe_execute_node(self, data):
-        node, existing = data
+        node, existing, schema_name, node_index, num_nodes = data
 
         start_time = time.time()
 
         error = None
 
         try:
+            print_start_line(node,
+                             schema_name,
+                             node_index,
+                             num_nodes)
+
             status = self.execute_node(node, existing)
         except (RuntimeError,
                 dbt.exceptions.ProgrammingException,
@@ -606,6 +627,7 @@ class RunManager(object):
             return node_id_to_index_map[node.get('unique_id')]
 
         node_results = []
+
         for node_list in node_dependency_list:
             for i, node in enumerate([node for node in node_list
                                       if node.get('skip')]):
@@ -618,60 +640,19 @@ class RunManager(object):
             nodes_to_execute = [node for node in node_list
                                 if not node.get('skip')]
 
-            threads = self.threads
-            num_nodes_this_batch = len(nodes_to_execute)
-            node_index = 0
-
-            def on_complete(run_model_results):
-                for run_model_result in run_model_results:
-                    node_results.append(run_model_result)
-
-                    index = get_idx(run_model_result.node)
-
-                    print_result_line(run_model_result,
-                                      schema_name,
-                                      index,
-                                      num_nodes)
-
-                    invocation_id = dbt.tracking.active_user.invocation_id
-                    dbt.tracking.track_model_run({
-                        "invocation_id": invocation_id,
-                        "index": index,
-                        "total": num_nodes,
-                        "execution_time": run_model_result.execution_time,
-                        "run_status": run_model_result.status,
-                        "run_skipped": run_model_result.skip,
-                        "run_error": run_model_result.error,
-                        "model_materialization": get_materialization(run_model_result.node),  # noqa
-                        "model_id": get_hash(run_model_result.node),
-                        "hashed_contents": get_hashed_contents(run_model_result.node),  # noqa
-                    })
-
-                    if run_model_result.errored:
-                        on_failure(run_model_result.node)
-                        logger.info(run_model_result.error)
-
-            while node_index < num_nodes_this_batch:
-                local_nodes = []
-                for i in range(
-                        node_index,
-                        min(node_index + threads, num_nodes_this_batch)):
-                    node = nodes_to_execute[i]
-                    local_nodes.append(node)
-
-                    print_start_line(node,
-                                     schema_name,
-                                     get_idx(node),
-                                     num_nodes)
-
-                map_result = pool.map_async(
+            for result in pool.imap_unordered(
                     self.safe_execute_node,
-                    [(local_node, existing,) for local_node in local_nodes],
-                    callback=on_complete
-                )
-                map_result.wait()
+                    [(node, existing, schema_name, get_idx(node), num_nodes,)
+                     for node in nodes_to_execute]):
 
-                node_index += threads
+                node_results.append(result)
+                index = get_idx(result.node)
+                print_result_line(result, schema_name, index, num_nodes)
+                track_model_run(index, num_nodes, result)
+
+                if result.errored:
+                    on_failure(result.node)
+                    logger.info(result.error)
 
         pool.close()
         pool.join()
