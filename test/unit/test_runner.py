@@ -63,12 +63,11 @@ class TestRunner(unittest.TestCase):
         }
 
         self.existing = {}
-        self.connection = {}
 
-        def fake_drop(connection, relation, relation_type, model_name):
+        def fake_drop(profile, relation, relation_type, model_name):
             del self.existing[relation]
 
-        def fake_query_for_existing(connection, schema):
+        def fake_query_for_existing(profile, schema, model_name):
             return self.existing
 
         self._drop = dbt.adapters.postgres.PostgresAdapter.drop
@@ -97,7 +96,6 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
-            self.connection,
             model,
             existing=self.existing)
 
@@ -121,7 +119,6 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
-            self.connection,
             model,
             existing=self.existing)
 
@@ -144,7 +141,6 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
-            self.connection,
             model,
             existing=self.existing)
 
@@ -169,7 +165,6 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
-            self.connection,
             self.model,
             existing=self.existing)
 
@@ -194,7 +189,6 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
-            self.connection,
             model,
             existing=self.existing)
 
@@ -219,7 +213,6 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
-            self.connection,
             model,
             existing=self.existing)
 
@@ -244,7 +237,6 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
-            self.connection,
             model,
             existing=self.existing)
 
@@ -271,7 +263,6 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
-            self.connection,
             self.model,
             existing=self.existing)
 
