@@ -4,7 +4,7 @@ import dbt.flags as flags
 
 from dbt.adapters.postgres import PostgresAdapter
 from dbt.exceptions import ValidationException
-from dbt.logger import GLOBAL_LOGGER as logger
+from dbt.logger import GLOBAL_LOGGER as logger  # noqa
 
 
 class TestPostgresAdapter(unittest.TestCase):
@@ -36,12 +36,3 @@ class TestPostgresAdapter(unittest.TestCase):
 
         self.assertEquals(connection.get('state'), 'open')
         self.assertNotEquals(connection.get('handle'), None)
-
-    def test__get_connection(self):
-        connection = PostgresAdapter.get_connection(self.profile)
-        duplicate = PostgresAdapter.get_connection(self.profile)
-
-        self.assertEquals(connection.get('state'), 'open')
-        self.assertNotEquals(connection.get('handle'), None)
-
-        self.assertEquals(connection, duplicate)

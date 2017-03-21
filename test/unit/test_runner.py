@@ -1,8 +1,6 @@
 from mock import MagicMock, patch
 import unittest
 
-import os
-
 import dbt.flags
 import dbt.parser
 import dbt.runner
@@ -65,11 +63,12 @@ class TestRunner(unittest.TestCase):
         }
 
         self.existing = {}
+        self.connection = {}
 
-        def fake_drop(profile, relation, relation_type, model_name):
+        def fake_drop(connection, relation, relation_type, model_name):
             del self.existing[relation]
 
-        def fake_query_for_existing(profile, schema):
+        def fake_query_for_existing(connection, schema):
             return self.existing
 
         self._drop = dbt.adapters.postgres.PostgresAdapter.drop
@@ -87,8 +86,6 @@ class TestRunner(unittest.TestCase):
         dbt.adapters.postgres.PostgresAdapter.query_for_existing = \
             self._query_for_existing
 
-
-
     @patch('dbt.adapters.postgres.PostgresAdapter.execute_model', return_value=1)
     @patch('dbt.adapters.postgres.PostgresAdapter.rename', return_value=None)
     @patch('dbt.adapters.postgres.PostgresAdapter.truncate', return_value=None)
@@ -100,6 +97,7 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
+            self.connection,
             model,
             existing=self.existing)
 
@@ -123,6 +121,7 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
+            self.connection,
             model,
             existing=self.existing)
 
@@ -145,6 +144,7 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
+            self.connection,
             model,
             existing=self.existing)
 
@@ -169,6 +169,7 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
+            self.connection,
             self.model,
             existing=self.existing)
 
@@ -193,6 +194,7 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
+            self.connection,
             model,
             existing=self.existing)
 
@@ -217,6 +219,7 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
+            self.connection,
             model,
             existing=self.existing)
 
@@ -241,6 +244,7 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
+            self.connection,
             model,
             existing=self.existing)
 
@@ -267,6 +271,7 @@ class TestRunner(unittest.TestCase):
 
         dbt.runner.execute_model(
             self.profile,
+            self.connection,
             self.model,
             existing=self.existing)
 
