@@ -1,4 +1,5 @@
 import copy
+import multiprocessing
 import re
 import time
 import yaml
@@ -13,7 +14,9 @@ from dbt.logger import GLOBAL_LOGGER as logger
 from dbt.schema import Column
 
 
-connection_cache = {}
+lock = multiprocessing.Lock()
+connections_in_use = {}
+connections_available = []
 
 
 class DefaultAdapter:
@@ -258,54 +261,105 @@ class DefaultAdapter:
         return profile.get('schema')
 
     @classmethod
-    def get_connection(cls, profile, name=None):
-        global connection_cache
+    def get_connection(cls, profile, name=None, recache_if_missing=True):
+        global connections_in_use
 
         if name is None:
             # if a name isn't specified, we'll re-use a single handle
             # named 'master'
             name = 'master'
 
-        if connection_cache.get(name):
-            return connection_cache.get(name)
+        if connections_in_use.get(name):
+            return connections_in_use.get(name)
+
+        if recache_if_missing is False:
+            raise dbt.exceptions.InternalException(
+                'Tried to get a connection "{}" which does not exist '
+                '(recache_if_missing is off).'.format(name))
 
         logger.debug('Acquiring new {} connection "{}".'
                      .format(cls.type(), name))
 
         connection = cls.acquire_connection(profile, name)
-        connection_cache[name] = connection
+        connections_in_use[name] = connection
 
         return cls.get_connection(profile, name)
 
     @classmethod
+    def total_connections_allocated(cls):
+        global connections_in_use, connections_available
+
+        return len(connections_in_use) + len(connections_available)
+
+    @classmethod
     def acquire_connection(cls, profile, name):
-        # profile requires some marshalling right now because it includes a
-        # wee bit of global config.
-        # TODO remove this
-        credentials = copy.deepcopy(profile)
+        global connections_available, lock
 
-        credentials.pop('type', None)
-        credentials.pop('threads', None)
+        # we add a magic number, 2 because there are master connections,
+        # one for pre- and post-run hooks, and one for integration tests.
+        max_connections = profile.get('threads') + 2
 
-        result = {
-            'type': cls.type(),
-            'name': name,
-            'state': 'init',
-            'transaction_open': False,
-            'handle': None,
-            'credentials': credentials
-        }
+        try:
+            lock.acquire()
+            num_allocated = cls.total_connections_allocated()
 
-        if dbt.flags.STRICT_MODE:
-            validate_connection(result)
+            if len(connections_available) > 0:
+                logger.debug('Re-using an available connection from the pool.')
+                return connections_available.pop()
+            elif num_allocated >= max_connections:
+                raise dbt.exceptions.InternalException(
+                    'Tried to request a new connection "{}" but '
+                    'the maximum number of connections are already '
+                    'allocated!'.format(name))
 
-        return cls.open_connection(result)
+            logger.debug('Opening a new connection ({} currently allocated)'
+                         .format(num_allocated))
+
+            credentials = copy.deepcopy(profile)
+
+            credentials.pop('type', None)
+            credentials.pop('threads', None)
+
+            result = {
+                'type': cls.type(),
+                'name': name,
+                'state': 'init',
+                'transaction_open': False,
+                'handle': None,
+                'credentials': credentials
+            }
+
+            if dbt.flags.STRICT_MODE:
+                validate_connection(result)
+
+            return cls.open_connection(result)
+        finally:
+            lock.release()
+
+    @classmethod
+    def release_connection(cls, profile, name):
+        global connections_in_use, connections_available, lock
+
+        to_release = cls.get_connection(profile, name,
+                                        recache_if_missing=False)
+
+        try:
+            lock.acquire()
+
+            if to_release.get('state') == 'open':
+                connections_available.append(to_release)
+            else:
+                cls.close(to_release)
+
+            del connections_in_use[name]
+        finally:
+            lock.release()
 
     @classmethod
     def cleanup_connections(cls):
-        global connection_cache
+        global connections_in_use
 
-        for name, connection in connection_cache.items():
+        for name, connection in connections_in_use.items():
             if connection.get('state') != 'closed':
                 logger.debug("Connection '{}' was left open."
                              .format(name))
@@ -313,7 +367,13 @@ class DefaultAdapter:
                 logger.debug("Connection '{}' was properly closed."
                              .format(name))
 
-        connection_cache = {}
+        try:
+            lock.acquire()
+
+            connections_in_use = {}
+
+        finally:
+            lock.release()
 
     @classmethod
     def reload(cls, connection):
@@ -322,27 +382,27 @@ class DefaultAdapter:
 
     @classmethod
     def begin(cls, profile, name='master'):
-        global connection_cache
+        global connections_in_use
         connection = cls.get_connection(profile, name)
 
         if dbt.flags.STRICT_MODE:
             validate_connection(connection)
 
         if connection['transaction_open'] is True:
-            raise dbt.exceptions.ProgrammingException(
+            raise dbt.exceptions.InternalException(
                 'Tried to begin a new transaction on connection "{}", but '
                 'it already had one open!'.format(connection.get('name')))
 
         cls.add_query(connection, 'BEGIN')
 
         connection['transaction_open'] = True
-        connection_cache[name] = connection
+        connections_in_use[name] = connection
 
         return connection
 
     @classmethod
     def commit(cls, connection):
-        global connection_cache
+        global connections_in_use
 
         if dbt.flags.STRICT_MODE:
             validate_connection(connection)
@@ -350,7 +410,7 @@ class DefaultAdapter:
         connection = cls.reload(connection)
 
         if connection['transaction_open'] is False:
-            raise dbt.exceptions.ProgrammingException(
+            raise dbt.exceptions.InternalException(
                 'Tried to commit transaction on connection "{}", but '
                 'it does not have one open!'.format(connection.get('name')))
 
@@ -358,7 +418,7 @@ class DefaultAdapter:
         connection.get('handle').commit()
 
         connection['transaction_open'] = False
-        connection_cache[connection.get('name')] = connection
+        connections_in_use[connection.get('name')] = connection
 
         return connection
 
@@ -370,7 +430,7 @@ class DefaultAdapter:
         connection = cls.reload(connection)
 
         if connection['transaction_open'] is False:
-            raise dbt.exceptions.ProgrammingException(
+            raise dbt.exceptions.InternalException(
                 'Tried to rollback transaction on connection "{}", but '
                 'it does not have one open!'.format(connection.get('name')))
 
@@ -378,7 +438,7 @@ class DefaultAdapter:
         connection.get('handle').rollback()
 
         connection['transaction_open'] = False
-        connection_cache[connection.get('name')] = connection
+        connections_in_use[connection.get('name')] = connection
 
         return connection
 
@@ -389,10 +449,13 @@ class DefaultAdapter:
 
         connection = cls.reload(connection)
 
+        if connection.get('state') == 'closed':
+            return connection
+
         connection.get('handle').close()
 
         connection['state'] = 'closed'
-        connection_cache[connection.get('name')] = connection
+        connections_in_use[connection.get('name')] = connection
 
         return connection
 

@@ -478,6 +478,7 @@ class RunManager(object):
 
         adapter.commit(connection)
         adapter.close(connection)
+        adapter.release_connection(profile, node.get('name'))
 
         return result
 
@@ -498,6 +499,20 @@ class RunManager(object):
                 filepath=node.get('build_path'), error=str(e).strip())
             status = "ERROR"
             logger.debug(error)
+            if type(e) == psycopg2.InternalError and \
+               ABORTED_TRANSACTION_STRING == e.diag.message_primary:
+                return RunModelResult(
+                    node,
+                    error='{}\n'.format(ABORTED_TRANSACTION_STRING),
+                    status="SKIP")
+        except dbt.exceptions.InternalException as e:
+            error = ("Internal error executing {filepath}\n\n{error}"
+                     "\n\nThis is an error in dbt. Please try again. If "
+                     "the error persists, open an issue at "
+                     "https://github.com/fishtown-analytics/dbt").format(
+                         filepath=node.get('build_path'),
+                         error=str(e).strip())
+            status = "ERROR"
             if type(e) == psycopg2.InternalError and \
                ABORTED_TRANSACTION_STRING == e.diag.message_primary:
                 return RunModelResult(
