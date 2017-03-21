@@ -481,7 +481,7 @@ class RunManager(object):
         logger.debug("executing node %s", node.get('unique_id'))
 
         if node.get('skip') is True:
-            return RunModelResult(node, skip=True)
+            return "SKIP"
 
         node = self.inject_runtime_config(node)
 
@@ -512,6 +512,7 @@ class RunManager(object):
                              num_nodes)
 
             status = self.execute_node(node, existing)
+
         except (RuntimeError,
                 dbt.exceptions.ProgrammingException,
                 psycopg2.ProgrammingError,
@@ -550,10 +551,14 @@ class RunManager(object):
 
         execution_time = time.time() - start_time
 
-        return RunModelResult(node,
-                              error=error,
-                              status=status,
-                              execution_time=execution_time)
+        result = RunModelResult(node,
+                                error=error,
+                                status=status,
+                                execution_time=execution_time)
+
+        print_result_line(result, schema_name, node_index, num_nodes)
+
+        return result
 
     def as_flat_dep_list(self, linker, nodes_to_run):
         return [[linker.get_node(node) for node in nodes_to_run]]
@@ -647,7 +652,6 @@ class RunManager(object):
 
                 node_results.append(result)
                 index = get_idx(result.node)
-                print_result_line(result, schema_name, index, num_nodes)
                 track_model_run(index, num_nodes, result)
 
                 if result.errored:
