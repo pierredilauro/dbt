@@ -471,7 +471,7 @@ class DefaultAdapter:
                      .format(cls.type(), connection_name))
 
         with cls.exception_handler(profile, sql, model_name, connection_name):
-            logger.debug('On {}: {}'.format(connection_name, sql))
+            logger.debug('On %s: %s', connection_name, sql)
             pre = time.time()
 
             cursor = connection.get('handle').cursor()
@@ -502,14 +502,14 @@ class DefaultAdapter:
 
     @classmethod
     def create_schema(cls, profile, schema, model_name=None):
-        logger.debug('Creating schema "%s".'.format(schema))
+        logger.debug('Creating schema "%s".', schema)
         sql = cls.get_create_schema_sql(schema)
         return cls.add_query(profile, sql, model_name)
 
     @classmethod
     def create_table(cls, profile, schema, table, columns, sort, dist,
                      model_name=None):
-        logger.debug('Creating table "%s".'.format(schema, table))
+        logger.debug('Creating table "%s"."%s".', schema, table)
         sql = cls.get_create_table_sql(schema, table, columns, sort, dist)
         return cls.add_query(profile, sql, model_name)
 
