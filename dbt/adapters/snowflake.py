@@ -46,11 +46,11 @@ class SnowflakeAdapter(PostgresAdapter):
             raise e
 
     @classmethod
-    def type():
+    def type(cls):
         return 'snowflake'
 
     @classmethod
-    def date_function():
+    def date_function(cls):
         return 'CURRENT_TIMESTAMP()'
 
     @classmethod
